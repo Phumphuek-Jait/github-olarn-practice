@@ -24,14 +24,7 @@ EXPECTED_EMAIL="YOUR_PRIVATE_GITHUB_EMAIL@users.noreply.github.com"
 REQUIRE_REFLOG=1
 
 # Required task branches (as per README)
-REQ_BRANCH_01="task/01-collaborators"
-REQ_BRANCH_02="task/02-feature-index"
-REQ_BRANCH_03="task/03-conflict-create"
-REQ_BRANCH_03B="task/03b-conflict-create-alt"
-REQ_BRANCH_04="task/04-conflict-resolve"
-REQ_BRANCH_05="task/05-recovery"
-REQ_BRANCH_06="task/06-history"
-REQ_BRANCH_07="task/07-evidence-reflog"
+REQ_BRANCHES="task/01-collaborators task/02-feature-index task/03-conflict-create task/03b-conflict-create-alt task/04-conflict-resolve task/05-recovery task/06-history task/07-evidence-reflog"
 
 # Commit keywords (must exist in correct task branch history)
 KW_FEATURE="Feature: Update index.html content"
@@ -138,132 +131,69 @@ test0_config(){
 # Test 1: Branches exist + merged into main (40)
 # ---------------------------------------------
 test1_branches(){
-  sep
-  echo "Test 1: Branch workflow (exist + merged into main) (40 pts)"
-
+  printf "\nTest 1: Branch & Merge Workflow (40 pts)\n"
   P=0
+  # ดึงรายชื่อ branch ที่ถูก merge เข้า main แล้วจริงๆ
+  MERGED_BRANCHES=$(git branch -a --merged main | sed 's/.* //')
 
-  for B in "$REQ_BRANCH_01" "$REQ_BRANCH_02" "$REQ_BRANCH_03" "$REQ_BRANCH_03B" "$REQ_BRANCH_04" "$REQ_BRANCH_05" "$REQ_BRANCH_06" "$REQ_BRANCH_07"
-  do
-    if branch_exists "$B"; then
-      pass "Branch exists: $B"
+  for B in $REQ_BRANCHES; do
+    # 1. เช็คว่ามี Branch ในเครื่องไหม
+    if git show-ref --verify --quiet "refs/heads/$B" || git show-ref --verify --quiet "refs/remotes/origin/$B"; then
       P=$((P + 2))
-      if branch_merged_into_main "$B"; then
-        pass "Merged into main: $B"
+      # 2. เช็คว่าถูก Merge เข้า main หรือยัง
+      if echo "$MERGED_BRANCHES" | grep -q "$B"; then
+        pass "$B: Merged into main"
         P=$((P + 3))
       else
-        fail "Not merged into main: $B (open PR and merge into main)"
+        fail "$B: Exists but NOT merged into main (Check your PR)"
       fi
     else
-      fail "Missing branch: $B"
+      fail "$B: Branch missing"
     fi
   done
-
-  # Total possible: 8 branches * (2+3) = 40
-  add "$P"
-  echo "Score: $P/40"
+  add "$P"; echo "Score: $P/40"
 }
 
 # ------------------------------------------------
 # Test 2: Commit keywords in correct branches (25)
 # ------------------------------------------------
 test2_keywords(){
-  sep
-  echo "Test 2: Commit keywords per task branch (25 pts)"
-
+  printf "\nTest 2: Commit Keywords in Main History (25 pts)\n"
   P=0
+  check_kw(){
+    if git log main --format='%s' | grep -Fxq "$1"; then
+      pass "Found Keyword: $1"; return 0
+    else
+      fail "Missing Keyword in main: $1"; return 1
+    fi
+  }
 
-  # Feature keyword must exist in task/02
-  if branch_has_keyword "$REQ_BRANCH_02" "$KW_FEATURE" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_02: $KW_FEATURE"
-    P=$((P + 6))
-  else
-    fail "Missing keyword on $REQ_BRANCH_02: $KW_FEATURE"
-  fi
+  check_kw "$KW_FEATURE" && P=$((P+6))
+  # Conflict keyword must appear at least twice (from 03 and 03b)
+  CONF_COUNT=$(git log main --format='%s' | grep -Fx "$KW_CONFLICT" | wc -l)
+  if [ "$CONF_COUNT" -ge 2 ]; then pass "Conflict Keywords OK ($CONF_COUNT/2)"; P=$((P+8)); else fail "Need 2 Conflict commits in main (found $CONF_COUNT)"; fi
+  
+  check_kw "$KW_MERGE" && P=$((P+5))
+  check_kw "$KW_RECOVERY" && P=$((P+3))
+  check_kw "$KW_HISTORY" && P=$((P+2))
+  check_kw "$KW_EVIDENCE" && P=$((P+1))
 
-  # Conflict keyword must exist in BOTH conflict branches (creation)
-  if branch_has_keyword "$REQ_BRANCH_03" "$KW_CONFLICT" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_03: $KW_CONFLICT"
-    P=$((P + 4))
-  else
-    fail "Missing keyword on $REQ_BRANCH_03: $KW_CONFLICT"
-  fi
-
-  if branch_has_keyword "$REQ_BRANCH_03B" "$KW_CONFLICT" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_03B: $KW_CONFLICT"
-    P=$((P + 4))
-  else
-    fail "Missing keyword on $REQ_BRANCH_03B: $KW_CONFLICT"
-  fi
-
-  # Merge keyword must exist in task/04
-  if branch_has_keyword "$REQ_BRANCH_04" "$KW_MERGE" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_04: $KW_MERGE"
-    P=$((P + 5))
-  else
-    fail "Missing keyword on $REQ_BRANCH_04: $KW_MERGE"
-  fi
-
-  # Recovery keyword must exist in task/05
-  if branch_has_keyword "$REQ_BRANCH_05" "$KW_RECOVERY" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_05: $KW_RECOVERY"
-    P=$((P + 3))
-  else
-    fail "Missing keyword on $REQ_BRANCH_05: $KW_RECOVERY"
-  fi
-
-  # History keyword must exist in task/06
-  if branch_has_keyword "$REQ_BRANCH_06" "$KW_HISTORY" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_06: $KW_HISTORY"
-    P=$((P + 2))
-  else
-    fail "Missing keyword on $REQ_BRANCH_06: $KW_HISTORY"
-  fi
-
-  # Evidence keyword must exist in task/07
-  if branch_has_keyword "$REQ_BRANCH_07" "$KW_EVIDENCE" >/dev/null 2>&1; then
-    pass "Found keyword on $REQ_BRANCH_07: $KW_EVIDENCE"
-    P=$((P + 1))
-  else
-    fail "Missing keyword on $REQ_BRANCH_07: $KW_EVIDENCE"
-  fi
-
-  add "$P"
-  echo "Score: $P/25"
+  add "$P"; echo "Score: $P/25"
 }
 
 # -----------------------------------------
 # Test 3: index.html structure + markers (15)
 # -----------------------------------------
-test3_index(){
-  sep
-  echo "Test 3: index.html structure + markers (15 pts)"
-
+test_index(){
+  printf "\nTest 3: index.html Structure (15 pts)\n"
   P=0
-
-  if [ ! -f "index.html" ]; then
-    fail "index.html missing; cannot check"
-    add 0
-    return
-  fi
-
-  if file_contains "index.html" "$INDEX_SEC_1"; then pass "Found: $INDEX_SEC_1"; P=$((P+4)); else fail "Missing: $INDEX_SEC_1"; fi
-  if file_contains "index.html" "$INDEX_SEC_2"; then pass "Found: $INDEX_SEC_2"; P=$((P+4)); else fail "Missing: $INDEX_SEC_2"; fi
-  if file_contains "index.html" "$INDEX_SEC_3"; then pass "Found: $INDEX_SEC_3"; P=$((P+4)); else fail "Missing: $INDEX_SEC_3"; fi
-
-  # markers required so automation can safely update only that section
-  if file_contains "index.html" "$MARKER_START" && file_contains "index.html" "$MARKER_END"; then
-    pass "AUTO-UPDATE markers found"
-    P=$((P+3))
-  else
-    fail "Missing AUTO-UPDATE markers in index.html"
-    echo "   Required markers:"
-    echo "   $MARKER_START"
-    echo "   $MARKER_END"
-  fi
-
-  add "$P"
-  echo "Score: $P/15"
+  grep -Fq "Feature Section" index.html && P=$((P+4)) || fail "Missing Feature Section"
+  grep -Fq "Conflict Simulation" index.html && P=$((P+4)) || fail "Missing Conflict Simulation"
+  grep -Fq "Automated Update Section" index.html && P=$((P+4)) || fail "Missing Auto-Update Section"
+  if grep -Fq "" index.html && grep -Fq "" index.html; then
+    pass "Markers OK"; P=$((P+3))
+  else fail "Markers Missing"; fi
+  add "$P"; echo "Score: $P/15"
 }
 
 # -----------------------------------------

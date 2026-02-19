@@ -74,13 +74,9 @@ environment.
 
 1. Create branch `task/02-feature-index` from `main`.
 2. **Modify `index.html**`: Add the following sections into the `<body>`:
-* **Line 10**: Add `<h2>Feature Section</h2>`.
+* **Line 11**: Add `<h2>Feature Section</h2>`.
 * **Line 12**: Add `<h2>Conflict Simulation</h2>`.
-* **Line 14**: Add `<h2>Automated Update Section</h2>`.
-* **Line 15**: Add the markers:
-```html
-
-```
+* **Line 13**: Add `<h2>Automated Update Section</h2>`.
 
 
 
