@@ -1,7 +1,7 @@
 # Collaborators
 
 ## Owner
-- Full Name: YOUR REAL NAME
+- Pongsathorn Promsukhan
 
 ## Collaborator (Simulated)
 - GitHub Actions Bot
