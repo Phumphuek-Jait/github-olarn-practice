@@ -118,9 +118,10 @@ environment.
 
 1. Create branch `task/05-recovery` from `main`.
 2. Delete content or corrupt `index.html`.
-3. Restore the file to its previous state.
-4. Commit message: `Recovery: Restore previous state`.
-5. Create a Pull Request and merge into `main`.
+3. commit the file that corrupted
+4. Restore the file to its previous state.
+5. Commit message: `Recovery: Restore previous state`.
+6. Create a Pull Request and merge into `main`.
 
 <!-- ### Part 6 – History Restructuring
 
