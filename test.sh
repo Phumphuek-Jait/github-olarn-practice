@@ -1,304 +1,281 @@
 #!/bin/sh
+# ==========================================
+# INT142 - test.sh (Contributor Submission Checker)
+# - Does NOT check "Required files"
+# - Checks content, commit keywords, reflog evidence
+# - Checks commit author name + email (strict)
+# Total: 100 points
+# ==========================================
 
-# ==========================================
-# INT142 Individual Practice Repo Test Script
-# Score-based validation (Total 100 points)
-# ==========================================
+# ---------------- CONFIG ----------------
+# Expected commit author name format:
+#   Firstname Lastname (Github-Practice)
+# Example:
+#   EXPECTED_NAME="John Smith (Github-Practice)"
+EXPECTED_NAME="FIRSTNAME LASTNAME (Github-Practice)"
+
+# Expected GitHub private email (exact match).
+# Example:
+#   EXPECTED_EMAIL="12345678+username@users.noreply.github.com"
+EXPECTED_EMAIL="YOUR_PRIVATE_GITHUB_EMAIL@users.noreply.github.com"
+
+# How many latest commits to validate author identity (excluding bots).
+# Set 0 to check ALL commits (may be slow on large repos).
+CHECK_LAST_N_COMMITS=50
+
+# Commit message keywords required
+KW_FEATURE="Feature: Update index.html content"
+KW_CONFLICT="Conflict: Modify same line in index.html"
+KW_MERGE="Merge: Resolve conflict on index.html"
+KW_RECOVERY="Recovery: Restore previous state"
+KW_HISTORY="History: Reorganize commits"
+KW_EVIDENCE="Evidence: Add reflog records"
+
+# Minimal content checks
+INDEX_MUST_HAVE_1="Feature Section"
+INDEX_MUST_HAVE_2="Conflict Simulation"
+INDEX_MUST_HAVE_3="Automated Update Section"
+
+COLLAB_MUST_HAVE_1="## Owner"
+COLLAB_MUST_HAVE_2="## Collaborator"
+COLLAB_OWNER_BULLET_MIN=1
+
+# Require reflog evidence from contributor
+REQUIRE_REFLOG=1
+# ----------------------------------------
 
 TOTAL=0
 FAILED=0
 
-sep () {
-  printf "\n---------------------------------------------------\n"
-}
+sep(){ printf "\n--------------------------------------------\n"; }
+pass(){ echo "✅ $1"; }
+fail(){ echo "❌ $1"; FAILED=1; }
 
-add_score () {
-  # $1 = points
-  TOTAL=$((TOTAL + $1))
-}
+add(){ TOTAL=$((TOTAL + $1)); }
 
-pass () {
-  echo "✅ $1"
-}
+have_file(){ [ -f "$1" ]; }
+have_dir(){ [ -d "$1" ]; }
 
-fail () {
-  echo "❌ $1"
-  FAILED=1
-}
+has_text(){ grep -Fq "$2" "$1" 2>/dev/null; }
 
-require_git_repo () {
+has_commit_subject(){ git log --format='%s' 2>/dev/null | grep -Fq "$1"; }
+
+require_repo_root(){
   if [ ! -d ".git" ]; then
-    fail "Not a git repository (missing .git). Run this script at repo root."
+    fail "Not a git repository (missing .git). Run at repo root."
     exit 1
   fi
 }
 
-file_exists () {
-  # $1 = path
-  [ -f "$1" ]
-}
-
-dir_exists () {
-  # $1 = path
-  [ -d "$1" ]
-}
-
-contains_text () {
-  # $1 = file, $2 = fixed string
-  # return 0 if contains
-  grep -Fq "$2" "$1" 2>/dev/null
-}
-
-contains_regex () {
-  # $1 = file, $2 = regex
-  grep -Eq "$2" "$1" 2>/dev/null
-}
-
-has_commit_subject () {
-  # $1 = fixed string to search in commit subject
-  git log --format='%s' 2>/dev/null | grep -Fq "$1"
-}
-
-has_commit_subject_regex () {
-  # $1 = regex
-  git log --format='%s' 2>/dev/null | grep -Eq "$1"
-}
-
-# ---------------------------
-# Test 1: Required files (30)
-# ---------------------------
-test_required_files () {
+validate_expected_config(){
   sep
-  echo "Test 1: Required files and folders (30 Points)"
+  echo "0) Config validation (0 pts)"
+  if [ "$EXPECTED_NAME" = "FIRSTNAME LASTNAME (Github-Practice)" ]; then
+    fail "EXPECTED_NAME is not set. Edit test.sh and set EXPECTED_NAME."
+  else
+    pass "EXPECTED_NAME is set"
+  fi
 
+  if [ "$EXPECTED_EMAIL" = "YOUR_PRIVATE_GITHUB_EMAIL@users.noreply.github.com" ]; then
+    fail "EXPECTED_EMAIL is not set. Edit test.sh and set EXPECTED_EMAIL."
+  else
+    pass "EXPECTED_EMAIL is set"
+  fi
+}
+
+# ----------------------------
+# 1) index.html content (25)
+# ----------------------------
+score_index_content(){
+  sep
+  echo "1) index.html content structure (25 pts)"
   P=0
 
-  if file_exists "README.md"; then
-    pass "README.md exists"
-    P=$((P + 5))
-  else
-    fail "README.md missing"
-  fi
-
-  if file_exists "index.html"; then
-    pass "index.html exists"
-    P=$((P + 5))
-  else
-    fail "index.html missing"
-  fi
-
-  if file_exists "index-template.html"; then
-    pass "index-template.html exists"
-    P=$((P + 5))
-  else
-    fail "index-template.html missing"
-  fi
-
-  if file_exists "COLLABORATORS.md"; then
-    pass "COLLABORATORS.md exists"
-    P=$((P + 5))
-  else
-    fail "COLLABORATORS.md missing"
-  fi
-
-  if file_exists ".github/workflows/classroom.yml"; then
-    pass ".github/workflows/classroom.yml exists"
-    P=$((P + 5))
-  else
-    fail ".github/workflows/classroom.yml missing"
-  fi
-
-  if dir_exists "reflog"; then
-    pass "reflog/ directory exists"
-    P=$((P + 5))
-  else
-    fail "reflog/ directory missing"
-  fi
-
-  add_score "$P"
-  echo " = Score gained: $P/30"
-}
-
-# ---------------------------------------
-# Test 2: README alignment & keywords (20)
-# ---------------------------------------
-test_readme_content () {
-  sep
-  echo "Test 2: README content alignment (20 Points)"
-
-  if ! file_exists "README.md"; then
-    fail "README.md missing; cannot check content"
+  if ! have_file "index.html"; then
+    fail "index.html missing; cannot check"
+    add 0
     return
   fi
 
+  if has_text "index.html" "$INDEX_MUST_HAVE_1"; then pass "Found: $INDEX_MUST_HAVE_1"; P=$((P+9)); else fail "Missing: $INDEX_MUST_HAVE_1"; fi
+  if has_text "index.html" "$INDEX_MUST_HAVE_2"; then pass "Found: $INDEX_MUST_HAVE_2"; P=$((P+9)); else fail "Missing: $INDEX_MUST_HAVE_2"; fi
+  if has_text "index.html" "$INDEX_MUST_HAVE_3"; then pass "Found: $INDEX_MUST_HAVE_3"; P=$((P+7)); else fail "Missing: $INDEX_MUST_HAVE_3"; fi
+
+  add "$P"
+  echo "Score: $P/25"
+}
+
+# ---------------------------------
+# 2) COLLABORATORS.md format (20)
+# ---------------------------------
+score_collab_content(){
+  sep
+  echo "2) COLLABORATORS.md format (20 pts)"
   P=0
 
-  # Check it looks like assignment-style parts
-  if contains_regex "README.md" "Part[[:space:]]*[0-9]+"; then
-    pass "README contains Part sections"
-    P=$((P + 5))
-  else
-    fail "README should contain Part sections (e.g., 'Part 1', 'Part 2', ...)"
+  if ! have_file "COLLABORATORS.md"; then
+    fail "COLLABORATORS.md missing; cannot check"
+    add 0
+    return
   fi
 
-  # Check automation described (remote overwrite)
-  if contains_regex "README.md" "Automat(ed|ion)|automated|remote update|overwrit"; then
-    pass "README mentions automation / remote update simulation"
-    P=$((P + 5))
+  if has_text "COLLABORATORS.md" "$COLLAB_MUST_HAVE_1"; then pass "Found: $COLLAB_MUST_HAVE_1"; P=$((P+8)); else fail "Missing heading: $COLLAB_MUST_HAVE_1"; fi
+  if has_text "COLLABORATORS.md" "$COLLAB_MUST_HAVE_2"; then pass "Found: $COLLAB_MUST_HAVE_2"; P=$((P+8)); else fail "Missing heading: $COLLAB_MUST_HAVE_2"; fi
+
+  # Heuristic: count bullets within 3 lines after "## Owner"
+  OWNER_BULLETS=$(grep -n "## Owner" -A 5 "COLLABORATORS.md" 2>/dev/null | grep -E "^-|^\*|^•" | wc -l | tr -d ' ')
+  if [ "$OWNER_BULLETS" -ge "$COLLAB_OWNER_BULLET_MIN" ]; then
+    pass "Owner section has entries ($OWNER_BULLETS)"
+    P=$((P+4))
   else
-    fail "README should mention automation/remote update simulation"
+    fail "Owner section looks empty (add at least one bullet under Owner)"
   fi
 
-  # Check evidence described
-  if contains_regex "README.md" "reflog/|Evidence"; then
-    pass "README mentions reflog evidence"
-    P=$((P + 5))
-  else
-    fail "README should mention reflog/ evidence"
-  fi
-
-  # Check commit keyword section exists
-  if contains_regex "README.md" "Commit Message Keywords|commit message keywords"; then
-    pass "README contains 'Commit Message Keywords' section"
-    P=$((P + 5))
-  else
-    fail "README should contain 'Commit Message Keywords' section"
-  fi
-
-  add_score "$P"
-  echo " = Score gained: $P/20"
+  add "$P"
+  echo "Score: $P/20"
 }
 
 # -----------------------------------------
-# Test 3: Commit keywords present in history (25)
+# 3) Commit message keywords present (25)
 # -----------------------------------------
-test_commit_keywords () {
+score_commit_keywords(){
   sep
-  echo "Test 3: Commit keywords in git history (25 Points)"
-
+  echo "3) Commit message keywords (25 pts)"
   P=0
 
-  # Required keywords (based on your README spec)
-  # You can edit these to match your README exactly.
-  K1="Feature: Update index.html content"
-  K2="Conflict: Modify same line in index.html"
-  K3="Merge: Resolve conflict on index.html"
-  K4="Recovery: Restore previous state"
-  K5="History: Reorganize commits"
-  K6="Evidence: Add reflog records"
-  K7="auto: simulate remote collaborator update"
+  if has_commit_subject "$KW_FEATURE"; then pass "Found commit: $KW_FEATURE"; P=$((P+5)); else fail "Missing commit: $KW_FEATURE"; fi
+  if has_commit_subject "$KW_CONFLICT"; then pass "Found commit: $KW_CONFLICT"; P=$((P+5)); else fail "Missing commit: $KW_CONFLICT"; fi
+  if has_commit_subject "$KW_MERGE"; then pass "Found commit: $KW_MERGE"; P=$((P+5)); else fail "Missing commit: $KW_MERGE"; fi
+  if has_commit_subject "$KW_RECOVERY"; then pass "Found commit: $KW_RECOVERY"; P=$((P+4)); else fail "Missing commit: $KW_RECOVERY"; fi
+  if has_commit_subject "$KW_HISTORY"; then pass "Found commit: $KW_HISTORY"; P=$((P+4)); else fail "Missing commit: $KW_HISTORY"; fi
 
-  if has_commit_subject "$K1"; then pass "Found commit: $K1"; P=$((P + 4)); else fail "Missing commit: $K1"; fi
-  if has_commit_subject "$K2"; then pass "Found commit: $K2"; P=$((P + 4)); else fail "Missing commit: $K2"; fi
-  if has_commit_subject "$K3"; then pass "Found commit: $K3"; P=$((P + 4)); else fail "Missing commit: $K3"; fi
-  if has_commit_subject "$K4"; then pass "Found commit: $K4"; P=$((P + 4)); else fail "Missing commit: $K4"; fi
-  if has_commit_subject "$K5"; then pass "Found commit: $K5"; P=$((P + 4)); else fail "Missing commit: $K5"; fi
-  if has_commit_subject "$K6"; then pass "Found commit: $K6"; P=$((P + 3)); else fail "Missing commit: $K6"; fi
-  if has_commit_subject "$K7"; then pass "Found commit: $K7"; P=$((P + 2)); else fail "Missing commit: $K7"; fi
+  if [ "$REQUIRE_REFLOG" -eq 1 ]; then
+    if has_commit_subject "$KW_EVIDENCE"; then pass "Found commit: $KW_EVIDENCE"; P=$((P+2)); else fail "Missing commit: $KW_EVIDENCE"; fi
+  else
+    pass "Evidence commit not required"
+    P=$((P+2))
+  fi
 
-  add_score "$P"
-  echo " = Score gained: $P/25"
+  add "$P"
+  echo "Score: $P/25"
 }
 
-# -------------------------------------------------
-# Test 4: Workflow contains overwrite + collaborator update (15)
-# -------------------------------------------------
-test_workflow_behavior () {
+# -----------------------------------------
+# 4) Reflog evidence files (10)
+# -----------------------------------------
+score_reflog_evidence(){
   sep
-  echo "Test 4: Workflow behavior check (15 Points)"
+  echo "4) Reflog evidence (10 pts)"
+  P=0
 
-  WF=".github/workflows/classroom.yml"
-  if ! file_exists "$WF"; then
-    fail "Workflow missing; cannot check automation"
+  if [ "$REQUIRE_REFLOG" -ne 1 ]; then
+    pass "Reflog not required"
+    add 10
+    echo "Score: 10/10"
     return
   fi
 
-  P=0
-
-  # Check it targets index.html
-  if contains_regex "$WF" "index\\.html"; then
-    pass "Workflow references index.html"
-    P=$((P + 5))
-  else
-    fail "Workflow should reference index.html"
-  fi
-
-  # Check it references COLLABORATORS.md
-  if contains_regex "$WF" "COLLABORATORS\\.md"; then
-    pass "Workflow references COLLABORATORS.md"
-    P=$((P + 4))
-  else
-    fail "Workflow should reference COLLABORATORS.md"
-  fi
-
-  # Check it commits (heuristic: git commit)
-  if contains_regex "$WF" "git[[:space:]]+commit"; then
-    pass "Workflow contains a commit step"
-    P=$((P + 3))
-  else
-    fail "Workflow should create a commit"
-  fi
-
-  # Check it pushes back (heuristic: git push)
-  if contains_regex "$WF" "git[[:space:]]+push"; then
-    pass "Workflow contains a push step"
-    P=$((P + 3))
-  else
-    fail "Workflow should push changes back to the repo"
-  fi
-
-  add_score "$P"
-  echo " = Score gained: $P/15"
-}
-
-# ------------------------------------
-# Test 5: Reflog evidence files (10)
-# ------------------------------------
-test_reflog_evidence () {
-  sep
-  echo "Test 5: Reflog evidence files (10 Points)"
-
-  if ! dir_exists "reflog"; then
-    fail "reflog/ missing; cannot check evidence"
+  if ! have_dir "reflog"; then
+    fail "reflog/ missing (required)"
+    add 0
     return
   fi
 
-  P=0
+  if have_file "reflog/reflog_HEAD.txt"; then pass "reflog/reflog_HEAD.txt exists"; P=$((P+6)); else fail "Missing reflog/reflog_HEAD.txt"; fi
 
-  # Minimum required evidence files
-  if file_exists "reflog/reflog_HEAD.txt"; then pass "reflog_HEAD.txt exists"; P=$((P + 4)); else fail "Missing reflog/reflog_HEAD.txt"; fi
-  if contains_regex "reflog/reflog_HEAD.txt" "Evidence:|Generated:" 2>/dev/null; then pass "reflog_HEAD.txt has header"; P=$((P + 1)); else fail "reflog_HEAD.txt should include a header"; fi
-
-  # At least one branch reflog file
   BRCOUNT=$(ls reflog 2>/dev/null | grep -E "^reflog_.*\.txt$" | grep -v "reflog_HEAD\.txt" | wc -l | tr -d ' ')
-  if [ "$BRCOUNT" -ge 1 ]; then
-    pass "Found branch reflog files: $BRCOUNT"
-    P=$((P + 3))
-  else
-    fail "No branch reflog files found (expected at least 1)"
-  fi
+  if [ "$BRCOUNT" -ge 1 ]; then pass "Found branch reflog files: $BRCOUNT"; P=$((P+2)); else fail "No branch reflog files found"; fi
 
-  # Evidence index file
-  if file_exists "reflog/README.md"; then pass "reflog/README.md exists"; P=$((P + 2)); else fail "Missing reflog/README.md"; fi
+  if have_file "reflog/README.md"; then pass "reflog/README.md exists"; P=$((P+2)); else fail "Missing reflog/README.md"; fi
 
-  add_score "$P"
-  echo " = Score gained: $P/10"
+  add "$P"
+  echo "Score: $P/10"
 }
 
-# ---------------
-# Main
-# ---------------
-require_git_repo
+# -----------------------------------------
+# 5) Commit author name + email check (20)
+# -----------------------------------------
+score_commit_identity(){
+  sep
+  echo "5) Commit author identity (20 pts)"
+  P=0
 
-printf "\n===================================================\n"
-echo "INT142 Individual Practice Repo - Validation Script"
-echo "==================================================="
+  # Validate name format (must contain real first+last + suffix)
+  # Strictly enforce the expected name string to avoid ambiguity.
+  # Also enforce that it ends with " (Github-Practice)".
+  echo "$EXPECTED_NAME" | grep -Eq "^[^()]+ [^()]+ \(Github-Practice\)$"
+  if [ $? -ne 0 ]; then
+    fail "EXPECTED_NAME format invalid. Must be: Firstname Lastname (Github-Practice)"
+    add 0
+    return
+  fi
 
-test_required_files
-test_readme_content
-test_commit_keywords
-test_workflow_behavior
-test_reflog_evidence
+  # Get commits to check (exclude bots)
+  if [ "$CHECK_LAST_N_COMMITS" -gt 0 ]; then
+    COMMITS=$(git log -n "$CHECK_LAST_N_COMMITS" --format='%H|%an|%ae' 2>/dev/null | grep -v "github-actions\[bot\]" | grep -v "github-classroom\[bot\]")
+  else
+    COMMITS=$(git log --format='%H|%an|%ae' 2>/dev/null | grep -v "github-actions\[bot\]" | grep -v "github-classroom\[bot\]")
+  fi
+
+  if [ -z "$COMMITS" ]; then
+    fail "No commits found to validate (after excluding bots)."
+    add 0
+    return
+  fi
+
+  BAD=0
+  COUNT=0
+
+  echo "$COMMITS" | while IFS='|' read -r H AN AE
+  do
+    COUNT=$((COUNT + 1))
+    if [ "$AN" != "$EXPECTED_NAME" ] || [ "$AE" != "$EXPECTED_EMAIL" ]; then
+      echo "❌ Commit $H has wrong author:"
+      echo "   Author Name : $AN"
+      echo "   Author Email: $AE"
+      BAD=$((BAD + 1))
+    fi
+  done
+
+  # The while loop above runs in subshell in many sh implementations.
+  # So we re-check with grep-based approach for scoring.
+
+  # Check: any non-bot commit with mismatching name?
+  if [ "$CHECK_LAST_N_COMMITS" -gt 0 ]; then
+    MISMATCH_NAME=$(git log -n "$CHECK_LAST_N_COMMITS" --format='%an|%ae' 2>/dev/null \
+      | grep -v "github-actions\[bot\]" \
+      | grep -v "github-classroom\[bot\]" \
+      | grep -Fv "$EXPECTED_NAME|$EXPECTED_EMAIL" | wc -l | tr -d ' ')
+  else
+    MISMATCH_NAME=$(git log --format='%an|%ae' 2>/dev/null \
+      | grep -v "github-actions\[bot\]" \
+      | grep -v "github-classroom\[bot\]" \
+      | grep -Fv "$EXPECTED_NAME|$EXPECTED_EMAIL" | wc -l | tr -d ' ')
+  fi
+
+  if [ "$MISMATCH_NAME" -eq 0 ]; then
+    pass "All checked (non-bot) commits match author name + private email"
+    P=$((P+20))
+  else
+    fail "Found $MISMATCH_NAME commit(s) with wrong author name/email (must match exactly)"
+  fi
+
+  add "$P"
+  echo "Score: $P/20"
+}
+
+# ---------------- MAIN ----------------
+require_repo_root
+echo "INT142 Submission Checker (Contributor-side)"
+echo "This script checks the contributor's work and identity settings."
+
+validate_expected_config
+
+score_index_content
+score_collab_content
+score_commit_keywords
+score_reflog_evidence
+score_commit_identity
 
 sep
 echo "Final Score: $TOTAL/100"
