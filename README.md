@@ -66,7 +66,6 @@ environment.
 
 
 3. Commit message: `Feature: Setup collaborators`.
-  push files to remote repo and run workflow
  
 4. Create a Pull Request and merge into `main`.
 
