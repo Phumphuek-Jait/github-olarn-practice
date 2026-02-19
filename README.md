@@ -122,14 +122,14 @@ environment.
 4. Commit message: `Recovery: Restore previous state`.
 5. Create a Pull Request and merge into `main`.
 
-### Part 6 – History Restructuring
+<!-- ### Part 6 – History Restructuring
 
 **Branch:** `task/06-history` (Base: `main`)
 
 1. Create branch `task/06-history` from `main`.
 2. Reorganize your commit history for clarity.
 3. Commit message: `History: Reorganize commits`.
-4. Create a Pull Request and merge into `main`.
+4. Create a Pull Request and merge into `main`. -->
 
 ### Part 7 – Evidence Collection
 
